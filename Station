@@ -1,0 +1,244 @@
+#include <SoftwareSerial.h>
+ 
+#define DEBUG true
+ 
+SoftwareSerial esp8266(2,3);
+void vibration();
+void tilt();
+void flame();
+
+//led,buzzer
+int rled=13;
+int gled=12;
+int bled=11;
+int buzzer = 8;
+int waterpump=10;
+
+//vibration sensor
+int vib=A4;
+
+//tilt sensor
+int tilt_sensor=9;
+
+//accelerometer sensor
+const int xpin = 4;                
+const int ypin = 5;                  
+const int zpin = 6; 
+
+ //flame sensor
+int sensorPin = 7;  
+int sensorValue = 0;
+
+ //gas sensor
+ int smokeA0 = A5;
+ int sensorThres = 100;
+
+ //temp sensor
+int val;
+int tempPin =A1;
+               
+     
+void setup()
+{
+  Serial.begin(9600);
+  esp8266.begin(9600); // esp's baud rate
+
+        Serial.begin(9600);
+      pinMode(rled,OUTPUT);
+      digitalWrite(rled,LOW);
+      pinMode(gled,OUTPUT);
+      digitalWrite(gled,LOW);
+      pinMode(bled,OUTPUT);
+      digitalWrite(bled,LOW);
+      
+      pinMode(buzzer,OUTPUT);
+      digitalWrite(buzzer,LOW);
+      pinMode(waterpump,OUTPUT);
+      
+      //vibration sensor
+      pinMode(vib, INPUT);
+      
+      //tilt sensor
+       pinMode(tilt_sensor, INPUT);
+      
+       //accelerometer
+      pinMode(xpin, OUTPUT);
+      pinMode(ypin, OUTPUT);
+      pinMode(zpin, INPUT);
+     
+      //flame sensor 
+      pinMode(sensorPin,INPUT);
+
+      //gas sensor
+      pinMode(smokeA0, INPUT);
+      
+
+ 
+ 
+  //sendData("AT+RST\r\n",2000,DEBUG); // reset module
+ 
+  sendData("AT+CWMODE=1\r\n",2000,DEBUG); // set mode
+
+  sendData("AT+CWLAP\r\n",10000,DEBUG); 
+ 
+  sendData("AT+CWJAP=\"S3T\",\"TREE\"\r\n",10000,DEBUG); // set access point
+
+  sendData("AT+CIPMUX=0\r\n",5000,DEBUG);
+  
+  sendData("AT+CIPSTART=\"TCP\",\"192.168.4.1\",333\r\n",5000,DEBUG); // connect to api
+ 
+ 
+
+  sendData("AT+CIPSEND=11\r\n",2000,DEBUG); // tell module request is 85 bytes
+ 
+  sendData("raghavendra\r\n",1000,DEBUG); // Send HTTP Request
+ 
+}
+ 
+void loop()
+{
+  Serial.println("Vibration:");
+      vibration();
+      delay(1000);
+      Serial.println("Tilt:");
+      tilt();
+      delay(1000);
+      Serial.println("Flame:");
+      flame();
+      Serial.println("Water_pump:");
+      delay(30000);
+
+
+}
+
+
+
+String sendData(String command, const int timeout, boolean debug)
+{
+     String response = "";
+   
+    esp8266.print(command); // send the read character to the esp8266
+   
+    long int time = millis();
+ 
+     boolean wait = false;
+   
+    while( (time+timeout) > millis())
+    {
+     
+      while(esp8266.available())
+      {
+       
+        // read and save the next character.
+        response += (char)esp8266.read();
+       
+      } 
+     
+    }
+   
+    if(debug)
+    {
+      Serial.print(response);
+    }
+   
+    return response;
+}
+
+void vibration() 
+{
+      int var=analogRead(vib);
+      Serial.println(var);
+      if(var<1000)
+      {
+            digitalWrite(rled,HIGH);
+            digitalWrite(gled,LOW);
+            digitalWrite(bled,LOW);
+            digitalWrite(buzzer,HIGH);
+             sendData("AT+CIPSEND=27\r\n",2000,DEBUG); // tell module request is 85 bytes
+ 
+  sendData("Alert!!! Vibration Detected\r\n",1000,DEBUG); // Send HTTP Request
+            delay(1000);
+      }
+      else
+      {
+            digitalWrite(rled,LOW);
+            digitalWrite(gled,LOW);
+            digitalWrite(bled,LOW);
+            digitalWrite(buzzer,LOW);
+            delay(1000);
+      }
+}
+
+void tilt()
+{
+      int variable=digitalRead(tilt_sensor);
+      Serial.println(variable);
+      if (variable == 1)
+      {
+            digitalWrite(gled, HIGH); 
+            digitalWrite(rled,LOW);
+            digitalWrite(bled,LOW);  
+            digitalWrite(buzzer, HIGH);
+            sendData("AT+CIPSEND=5\r\n",2000,DEBUG); // tell module request is 85 bytes
+ 
+  sendData("Alert!!! Tilt Detected\r\n",1000,DEBUG); // Send HTTP Request
+            delay(300);                       
+            digitalWrite(gled, LOW);
+            digitalWrite(rled,LOW);
+            digitalWrite(bled,LOW);     
+            digitalWrite(buzzer, LOW); 
+            delay(300);  
+      }
+      delay(1000);
+        int x = analogRead(xpin);  
+        int y = analogRead(ypin);  
+        int z = analogRead(zpin);  
+        float zero_G = 512.0; 
+        float scale = 102.3;  
+        Serial.print(((float)x - 331.5)/65*9.8);  
+        Serial.print("\t");
+        Serial.print(((float)y - 329.5)/68.5*9.8);  
+        Serial.print("\t");
+        Serial.print(((float)z - 340)/68*9.8);  
+        Serial.print("\n");
+        delay(1000); 
+}
+void flame() 
+{ 
+  int analogSensor = analogRead(smokeA0);
+  Serial.print("Pin A0: ");
+  Serial.println(analogSensor);
+  sensorValue = analogRead(sensorPin);
+  Serial.print("Flame sensor value: "); 
+  Serial.println(sensorValue); 
+  delay(1000);
+  if (sensorValue < 1000 && analogSensor > sensorThres)
+  { 
+    Serial.println("Fire Detected"); 
+    Serial.println("LED on"); 
+    digitalWrite(bled,HIGH); 
+    digitalWrite(gled, LOW);
+    digitalWrite(rled,LOW);
+    digitalWrite(buzzer,HIGH); 
+    sendData("AT+CIPSEND=5\r\n",2000,DEBUG); // tell module request is 85 bytes
+ 
+  sendData("Alert!!! Fire Detected\r\n",1000,DEBUG); // Send HTTP Request
+    delay(1000); 
+  } 
+  digitalWrite(bled,LOW); 
+  digitalWrite(gled, LOW);
+  digitalWrite(rled,LOW);
+  digitalWrite(buzzer,LOW); 
+  delay(sensorValue); 
+  delay(1000);
+  val = analogRead(tempPin);
+  float mv = ( val/1024.0)*5000;
+  float cel = mv/10;
+  float farh = (cel*9)/5 + 32;
+
+  Serial.print("TEMPRATURE = ");
+  Serial.print(cel);
+  Serial.print("*C");
+  Serial.println();
+  digitalWrite(waterpump,HIGH); 
+}
